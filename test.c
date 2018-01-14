@@ -27,6 +27,9 @@ dump_tokens(const char *src)
 	while (1) {
 		src = token_get(&token, src);
 
+		if (src == NULL)
+			break;
+
 		switch (token.type) {
 		case TOKEN_ERR:
 			print_indent(level);
@@ -38,13 +41,13 @@ dump_tokens(const char *src)
 			printf("LIST\n");
 			break;
 		case TOKEN_LIST_END:
-			printf("END\n");
-			level--;
+			level = level > 0 ? level - 1 : 0;
 			print_indent(level);
+			printf("END\n");
 			break;
 		case TOKEN_SYMBOL:
 			print_indent(level);
-			printf("%sSYMBOL: %.*s\n", token.err ? "INVALID" : "", token.len, token.src);
+			printf("%sSYMBOL: %.*s\n", token.err ? "INVALID " : "", token.len, token.src);
 			break;
 		default:
 			print_indent(level);

@@ -32,13 +32,31 @@ is_list_end_char(char c)
 static int
 is_symbol_start_char(char c)
 {
-	return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z');
+	return ('A' <= c && c <= 'Z')
+	    || ('a' <= c && c <= 'z');
 }
 
 static int
 is_symbol_char(char c)
 {
-	return is_symbol_start_char(c) || ('0' <= c && c <= '9');
+	return is_symbol_start_char(c)
+	    || ('0' <= c && c <= '9');
+}
+
+static int
+is_symbol_end_char(char c)
+{
+	return is_blank_char(c)
+	    || is_list_start_char(c)
+	    || is_list_end_char(c);
+}
+
+static int
+is_err_end_char(char c)
+{
+	return is_blank_char(c)
+	    || is_list_start_char(c)
+	    || is_list_end_char(c);
 }
 
 const char *
@@ -46,14 +64,18 @@ token_get(struct token *token, const char *src)
 {
 	enum {
 		SEEK,
+		LIST_START,
+		LIST_END,
+		SYMBOL_START,
 		SYMBOL,
+		ERR_START,
 		ERR
 	} st = SEEK;
 
 	token->type = TOKEN_ERR;
 	token->src = src;
 	token->len = 0;
-	token->err = 1;
+	token->err = 0;
 
 	char c;
 	while ((c = *src) != '\0') {
@@ -61,48 +83,64 @@ token_get(struct token *token, const char *src)
 		case SEEK:
 			if (is_blank_char(c)) {
 				src++;
-				continue;
+				break;
 			}
 			if (is_list_start_char(c)) {
-				token->type = TOKEN_LIST_START;
-				token->src = src;
-				token->len = 1;
-				token->err = 0;
-				return src + 1;
+				st = LIST_START;
+				break;
 			}
 			if (is_list_end_char(c)) {
-				token->type = TOKEN_LIST_END;
-				token->src = src;
-				token->len = 1;
-				token->err = 0;
-				return src + 1;
+				st = LIST_END;
+				break;
 			}
 			if (is_symbol_start_char(c)) {
-				token->type = TOKEN_SYMBOL;
-				token->src = src;
-				token->len = 1;
-				token->err = 0;
-				st = SYMBOL;
-				src++;
-				continue;
+				st = SYMBOL_START;
+				break;
 			}
-			st = ERR;
-			continue;
+			st = ERR_START;
+			break;
+		case LIST_START:
+			token->type = TOKEN_LIST_START;
+			token->src = src;
+			token->len = 1;
+			token->err = 0;
+			return src + 1;
+		case LIST_END:
+			token->type = TOKEN_LIST_END;
+			token->src = src;
+			token->len = 1;
+			token->err = 0;
+			return src + 1;
+		case SYMBOL_START:
+			token->type = TOKEN_SYMBOL;
+			token->src = src;
+			token->len = 1;
+			token->err = 0;
+			st = SYMBOL;
+			src++;
+			break;
 		case SYMBOL:
-			if (is_blank_char(c))
+			if (is_symbol_end_char(c))
 				return src;
-			if (is_symbol_char(c)) {
-				token->len++;
-				src++;
-				continue;
-			}
-			token->err = 1;
-			continue;
+			if (!is_symbol_char(c))
+				token->err = 1;
+			token->len++;
+			src++;
+			break;
+		case ERR_START:
+			token->type = TOKEN_ERR;
+			token->src = src;
+			token->len = 1;
+			token->err = 0;
+			st = ERR;
+			src++;
+			break;
 		case ERR:
-			if (is_blank_char(c))
+			if (is_err_end_char(c))
 				return src;
 			token->len++;
-			continue;
+			src++;
+			break;
 		}
 	}
 
